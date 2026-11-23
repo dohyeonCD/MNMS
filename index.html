@@ -1701,7 +1701,7 @@ function drawIcon(size) {
   y.addColorStop(0, 'rgba(255,236,160,.95)'); y.addColorStop(0.45, 'rgba(255,236,160,.45)'); y.addColorStop(1, 'rgba(255,236,160,0)');
   x.fillStyle = y; x.fillRect(0, 0, size, size);
   // 주사위 (이모지 글꼴은 기기마다 canvas에 안 그려지는 경우가 있어서 도형으로 직접 그림)
-  drawDice(x, size * 0.5, size * 0.495, size * 0.27, size);
+  drawDice(x, size * 0.5125, size * 0.495, size * 0.27, size);
   return c.toDataURL('image/png');
 }
 function drawDice(x, cx, cy, a, size) {
