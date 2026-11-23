@@ -405,7 +405,7 @@ const PHOTO_MAX_CHARS = 420000;          // 사진 1장 최대 크기(약 0.42MB
 const FREE_BYTES = 1024 * 1024 * 1024;   // Firestore 무료 저장 1GiB
 const KINDS = {
   members: { label: '멤버', icon: '👤', ph: '닉네임' },
-  areas:   { label: '장소 (대분류)', icon: '📍', ph: '예: 강남, 홍대' },
+  areas:   { label: '장소 (지역)', icon: '📍', ph: '예: 강남, 홍대' },
   games:   { label: '보드게임', icon: '🎲', ph: '게임 이름' },
   foods:   { label: '식사 종류', icon: '🍽️', ph: '예: 한식, 일식' }
 };
@@ -622,7 +622,7 @@ const Photos = {
           await col.doc(pid).set({ d: loc.data, rid: loc.rid || '', at: Date.now() });
           setList(LS_PUP, getList(LS_PUP).filter(x => x !== pid));
           updateSyncPill();
-        } catch (e) { setSync('error', e && e.code); break; }
+        } catch (e) { onWriteError(e); break; }
       }
     } finally { this.uploading = false; updateSyncPill(); if (curView === 'settings') renderSettings(); }
   },
@@ -1000,11 +1000,11 @@ function renderForm() {
   h += `<div class="fld"><div class="lb">👥 함께한 인원<span class="r" id="totalLb"></span></div>${pickerHtml('members', true)}
         <div class="row" style="margin-top:10px"><span class="small muted" style="font-weight:600">목록에 없는 인원</span>
         <div class="stepper"><button type="button" data-act="guest" data-d="-1">−</button><span id="guestN">${D.guests}</span><button type="button" data-act="guest" data-d="1">＋</button></div><span class="small muted">명</span></div></div>`;
-  h += `<div class="fld"><div class="lb">📍 장소</div><div class="sub-lb" style="margin-top:0">큰 위치</div>${pickerHtml('areas', false)}
+  h += `<div class="fld"><div class="lb">📍 장소</div><div class="sub-lb" style="margin-top:0">지역</div>${pickerHtml('areas', false)}
         <div class="sub-lb">상세 위치</div><input type="text" id="f-place" data-bind="place" placeholder="예: 보드게임카페 레드버튼, 파티룸" value="${esc(D.place)}" autocomplete="off">
         <div id="sug-place">${sugHtml('place')}</div></div>`;
   if (isMeet) {
-    h += `<div class="fld"><div class="lb">🎲 한 보드게임<span class="r" id="gameLb"></span></div>${pickerHtml('games', true)}</div>`;
+    h += `<div class="fld"><div class="lb">🎲 플레이한 보드게임<span class="r" id="gameLb"></span></div>${pickerHtml('games', true)}</div>`;
     h += `<div class="fld"><div class="lb">🍽️ 식사</div><div class="group"><div class="sub-lb" style="margin-top:0">카테고리</div>${pickerHtml('foods', false)}
           <div class="sub-lb">음식점</div><input type="text" id="f-fname" data-bind="food.name" placeholder="가게 이름" value="${esc(D.food.name)}" autocomplete="off">
           <div id="sug-food">${sugHtml('food')}</div>
@@ -1206,7 +1206,7 @@ function statGo(el) {
   let label, test, type = 'all';
   if (k === 'games') { label = '🎲 ' + tagName('games', v); test = r => r.games.includes(v); type = 'meet'; }
   else if (k === 'members') { label = '👤 ' + tagName('members', v); test = r => r.members.includes(v); type = ST.inclSp ? 'all' : 'meet'; }
-  else if (k === 'areas') { label = '📍 ' + (v ? tagName('areas', v) : '(대분류 미지정)'); test = r => r.area === v && (!!v || !!r.place); type = ST.inclSp ? 'all' : 'meet'; }
+  else if (k === 'areas') { label = '📍 ' + (v ? tagName('areas', v) : '(지역 미지정)'); test = r => r.area === v && (!!v || !!r.place); type = ST.inclSp ? 'all' : 'meet'; }
   else if (k === 'place') { label = '📍 ' + [g ? tagName('areas', g) : '', v].filter(Boolean).join(' · '); test = r => r.area === g && r.place === v; type = ST.inclSp ? 'all' : 'meet'; }
   else if (k === 'foods') { label = '🍽️ ' + (v ? tagName('foods', v) : '(카테고리 미지정)'); test = r => r.food.cat === v && (!!v || !!r.food.name); type = 'meet'; }
   else if (k === 'food') { label = '🍽️ ' + [g ? tagName('foods', g) : '', v].filter(Boolean).join(' · '); test = r => r.food.cat === g && r.food.name === v; type = 'meet'; }
@@ -1232,13 +1232,13 @@ function renderSettings() {
   const li = (t, hidden) => `<li data-id="${esc(t.id)}" class="${hidden ? 'hid' : ''}"><span class="handle"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="6" r="1.6"/><circle cx="15" cy="6" r="1.6"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="9" cy="18" r="1.6"/><circle cx="15" cy="18" r="1.6"/></svg></span>
       <button class="nm" data-act="tagRename" data-id="${esc(t.id)}">${esc(t.name)}</button><span class="cnt">${usageOf(setKind, t.id)}회</span>
       ${hidden ? `<button class="ib" data-act="tagRestore" data-id="${esc(t.id)}">다시 보이기</button>` : `<button class="ib" data-act="tagDel" data-id="${esc(t.id)}">삭제</button>`}</li>`;
-  let h = !canEdit() ? '' : `<div class="sec-title">🏷️ 목록 관리</div>
+  let h = !canEdit() ? '' : `<div class="sec-title">🏷️ 설정 관리</div>
   <div class="card scard">
     <div class="ktabs">${Object.keys(KINDS).map(k => `<button class="chip k-${k} ${k === setKind ? 'on' : ''}" data-act="setKind" data-v="${k}">${KINDS[k].icon} ${KINDS[k].label.replace(/ \(.*\)/, '')} ${tagList(k).filter(t => !t.hidden).length}</button>`).join('')}</div>
-    <p class="d">기록할 때 태그로 고를 항목. 이름을 눌러 수정 가능, 왼쪽 점을 드래그&드롭하여 순서 변경 가능.</p>
+    <p class="d">기록할 때 태그로 고를 항목.<br>이름을 눌러 수정, 점을 드래그&드롭하여 순서 변경 가능.</p>
     <div class="addbox"><input type="text" id="setAddIn" placeholder="${esc(KINDS[setKind].ph)} 추가" autocomplete="off" enterkeyhint="done"><button class="btn primary" data-act="tagNew">추가</button></div>
     <ul class="taglist" id="tagUL">${vis.map(t => li(t, false)).join('')}</ul>
-    ${!vis.length ? `<div class="empty small" style="padding:16px">추가 전. 위에서 추가하거나, 기록을 작성할 때 바로 추가 가능.</div>` : ''}
+    ${!vis.length ? `<div class="empty small" style="padding:16px">추가 전.<br>위에서 추가하거나, 기록을 작성할 때 바로 추가 가능.</div>` : ''}
     ${hid.length ? `<div class="sub-lb" style="margin-top:14px">숨긴 항목 (기록엔 존재)</div><ul class="taglist">${hid.map(t => li(t, true)).join('')}</ul>` : ''}
   </div>`;
 
@@ -1251,7 +1251,7 @@ function renderSettings() {
     const em = authUser && authUser.email ? authUser.email : '관리자';
     h += `<div class="rolebox">🔑 <b>관리자 · ${esc(em)}</b><button class="ib btn" style="padding:6px 10px" data-act="adminLogout">로그아웃</button></div>
       <div class="small muted">동기화 ID: <b>${esc(sid)}</b>${pend ? ` · 올릴 사진 ${pend}장 남음` : ''}</div>
-      <p class="d" style="margin-top:8px">일반 인원들한테는 아래 링크로 공유! 링크로 들어오면 <b>조회만</b> 가능.</p>
+      <p class="d" style="margin-top:8px">일반 인원들한테는 아래 링크로 공유!<br>링크로 들어오면 <b>조회만</b> 가능.</p>
       <div class="row"><button class="btn primary" data-act="copyShare">🔗 공유 링크 복사</button>${pend && syncState === 'on' ? '<button class="btn" data-act="syncRetry">사진 다시 올리기</button>' : ''}</div>
       <div class="row" style="margin-top:8px"><button class="btn danger" data-act="syncOff">이 기기 동기화 끄기</button></div>`;
   } else {
@@ -1262,6 +1262,7 @@ function renderSettings() {
         <input type="password" id="admPw" placeholder="비밀번호" autocomplete="current-password">
         <button class="btn primary" data-act="adminLogin">관리자 로그인</button></div>`;
   }
+  if (sid && syncState === 'error') h += `<button class="btn primary" style="width:100%;margin-top:10px" data-act="reconnect">🔄 다시 연결</button>`;
   h += `</div>`;
 
   const pct = photoBytes / FREE_BYTES * 100;
@@ -1269,7 +1270,7 @@ function renderSettings() {
   <div class="card scard">
     <div class="small"><b>사진 ${photoN}장 · 약 ${fmtMB(photoBytes)}</b> <span class="muted">/ 무료 1GB</span></div>
     <div class="meter"><i style="width:${Math.min(100, Math.max(pct, photoBytes ? .5 : 0)).toFixed(2)}%"></i></div>
-    <div class="small muted">사진은 장당 약 0.2~0.4MB로 줄여서 저장 예정. 기록당 최대 ${MAX_PHOTOS}장.</div>
+    <div class="small muted">사진은 장당 약 0.2~0.4MB로 줄여서 저장 예정.<br>기록당 최대 ${MAX_PHOTOS}장.</div>
     <div class="small" style="margin-top:10px"><b>기록 데이터 ${fmtMB(stateBytes)}</b> <span class="muted">/ 한 문서 최대 1MB</span></div>
     <div class="meter"><i style="width:${Math.min(100, stateBytes / 1048576 * 100).toFixed(1)}%;${stateBytes > 800000 ? 'background:var(--danger)' : ''}"></i></div>
   </div>`;
@@ -1398,13 +1399,13 @@ function doExcel() {
   const nums = numbering();
   const tn = (k, ids) => ids.map(id => tagName(k, id)).join(', ');
   const meets = S.records.filter(r => r.type === 'meet').sort(cmpAsc).map(r => ({
-    '회차': nums[r.id], '날짜': r.date, '요일': wdOf(r.date), '대분류': r.area ? tagName('areas', r.area) : '', '상세 위치': r.place,
+    '회차': nums[r.id], '날짜': r.date, '요일': wdOf(r.date), '지역': r.area ? tagName('areas', r.area) : '', '상세 위치': r.place,
     '인원': headCount(r), '참석자': tn('members', r.members) + (r.guests ? (r.members.length ? ` 외 ${r.guests}명` : `${r.guests}명`) : ''),
     '보드게임': tn('games', r.games), '식사 카테고리': r.food.cat ? tagName('foods', r.food.cat) : '', '음식점': r.food.name, '메뉴': r.food.menu,
     '기억에 남는 순간': r.memory, '비고': r.note, '사진 수': r.photos.length
   }));
   const sps = S.records.filter(r => r.type === 'special').sort(cmpAsc).map(r => ({
-    '날짜': r.date, '요일': wdOf(r.date), '일정': r.title, '대분류': r.area ? tagName('areas', r.area) : '', '상세 위치': r.place,
+    '날짜': r.date, '요일': wdOf(r.date), '일정': r.title, '지역': r.area ? tagName('areas', r.area) : '', '상세 위치': r.place,
     '인원': headCount(r), '참석자': tn('members', r.members) + (r.guests ? (r.members.length ? ` 외 ${r.guests}명` : `${r.guests}명`) : ''), '비고': r.note, '사진 수': r.photos.length
   }));
   const mList = S.records.filter(r => r.type === 'meet');
@@ -1466,7 +1467,7 @@ function syncLineText() {
   if (syncState === 'off') return '지금은 이 기기에만 저장. (동기화 꺼짐)';
   if (syncState === 'connecting') return '연결하는 중…';
   if (syncState === 'on') return ROLE === 'viewer' ? '✓ 연결됨 · 관리자가 고치면 바로 업데이트 예정' : '✓ 연결됨 · 다른 기기와 자동으로 연동 예정' + (Photos.uploading ? ' · 사진 올리는 중' : '');
-  if (syncErr === 'permission-denied') return ROLE === 'admin' ? '⚠ 저장 권한 X. 관리자 목록에 없는 계정.' : '⚠ 링크나 ID 확인 필요.';
+  if (syncErr === 'permission-denied') return ROLE === 'admin' ? '⚠ 저장 권한 X. 로그인이 풀렸거나 관리자 목록에 없는 계정. 아래 다시 연결 필요.' : '⚠ 링크나 ID 확인 필요.';
   if (syncErr === 'load') return '⚠ 동기화 실패. 인터넷 연결 확인 후, 새로고침 필요.';
   return '⚠ 동기화 오류' + (syncErr ? ` (${syncErr})` : '') + ' · 인터넷 연결 확인 필요.';
 }
@@ -1482,7 +1483,9 @@ function pushCloud() {
   myLastPush = S.updatedAt;
   const json = JSON.stringify(S);
   if (byteLen(json) > 1000000) { setSync('error', '기록 데이터가 1MB 초과'); return; }
-  syncRef.set({ json, updatedAt: S.updatedAt, device: myDevice }).catch(e => setSync('error', e && e.code));
+  syncRef.set({ json, updatedAt: S.updatedAt, device: myDevice })
+    .then(() => { writeRetried = false; if (syncState === 'error') setSync('on'); })
+    .catch(onWriteError);
 }
 function onSnap(snap) {
   if (ROLE === 'viewer') {   // 보기 전용: 항상 클라우드 내용을 그대로 보여줌, 절대 쓰지 않음
@@ -1519,6 +1522,7 @@ async function initSync() {
     if (!firebase.apps.length) firebase.initializeApp(BAKED_CFG);
     const db = firebase.firestore();
     await resolveRole(db);
+    watchAuth();
     syncRef = db.collection(COL).doc(id);
     syncRef.onSnapshot(onSnap, err => setSync('error', err && err.code));
   } catch (e) { setSync('error', 'load'); }
@@ -1541,7 +1545,9 @@ async function checkAdmin(db, user) {
 }
 async function resolveRole(db) {
   authUser = await firstAuthUser();
+  const wasAdmin = getLS(LS_ADMIN_HINT) === '1';
   const admin = await checkAdmin(db, authUser);
+  if (wasAdmin && !authUser) setTimeout(() => toast('로그인 만료. 설정에서 다시 로그인 필요!', 3500), 800);
   setLS(LS_ADMIN_HINT, admin ? '1' : '0');
   const role = admin ? 'admin' : 'viewer';
   if (role !== ROLE) {
@@ -1594,6 +1600,46 @@ async function copyShare() {
   try { await navigator.clipboard.writeText(url); toast('공유 링크 복사 완료. 붙여넣기로 공유 가능!', 2600); }
   catch (e) { dlg({ title: '공유 링크', msg: '아래 주소를 길게 눌러 복사 가능.', input: { value: url } }); }
 }
+/* ---------- 아이폰 홈 화면 앱 로그인 풀림 대응 ----------
+   iOS 홈 화면 앱은 백그라운드에 갔다 오면 IndexedDB(로그인 정보 저장소) 연결이 끊겨서
+   Firebase가 조용히 로그아웃 상태가 되는 경우가 있음 → 저장이 permission-denied로 거절됨.
+   새로 불러오면 저장소 연결이 다시 붙고 로그인도 복구되므로, 그때 한 번 자동으로 다시 불러옴. */
+let writeRetried = false;
+function recoverAuth() {
+  if (ROLE !== 'admin') return false;
+  let last = 0; try { last = +sessionStorage.getItem('bg_recover_at') || 0; } catch (e) {}
+  if (Date.now() - last < 60000) return false;          // 1분 안에 또 새로고침하지 않기 (무한 반복 방지)
+  try { sessionStorage.setItem('bg_recover_at', String(Date.now())); } catch (e) {}
+  toast('로그인 확인 중~', 3000);
+  setTimeout(() => location.reload(), 300);
+  return true;
+}
+function onWriteError(e) {
+  const code = e && e.code;
+  if (code === 'permission-denied' && ROLE === 'admin' && window.firebase && firebase.auth) {
+    const u = firebase.auth().currentUser;
+    if (!u) { if (recoverAuth()) return; }
+    else if (!writeRetried) {                            // 로그인은 살아 있으면: 토큰만 새로 받아서 한 번 더 시도
+      writeRetried = true;
+      u.getIdToken(true).then(() => setTimeout(() => { pushCloud(); Photos.flush(); }, 0)).catch(() => setSync('error', code));
+      return;
+    }
+  }
+  setSync('error', code);
+}
+function watchAuth() {
+  if (!window.firebase || !firebase.auth) return;
+  firebase.auth().onAuthStateChanged(u => {
+    authUser = u;
+    if (ROLE === 'admin' && !u && document.visibilityState === 'visible') recoverAuth();
+  });
+}
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState !== 'visible' || ROLE !== 'admin' || !syncRef || !window.firebase || !firebase.auth) return;
+  const u = firebase.auth().currentUser;
+  if (!u) { recoverAuth(); return; }
+  u.getIdToken(true).then(() => { if (syncState === 'error') { writeRetried = false; pushCloud(); Photos.flush(); } }).catch(() => {});
+});
 window.addEventListener('online', () => Photos.flush());
 async function syncOn() {
   const id = norm($('#syncIn').value).replace(/[\/\s]/g, '');
@@ -1667,6 +1713,7 @@ const ACT = {
   tagRestore: el => { const t = tagById(setKind, el.dataset.id); if (t) { delete t.hidden; commit(); } },
   syncOn: () => syncOn(), syncOff: () => syncOff(), syncRetry: () => Photos.flush(),
   adminLogin: () => adminLogin(), adminLogout: () => adminLogout(), copyShare: () => copyShare(),
+  reconnect: () => location.reload(),
   backup: el => doBackup(el.dataset.photos === '1'),
   restore: () => $('#restoreInput').click(),
   excel: () => doExcel(),
